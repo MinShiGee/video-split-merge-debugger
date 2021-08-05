@@ -1,81 +1,59 @@
-from . import util
 import os
+from . import constant as const
 import threading
-import subprocess
+from . import util
 
-import src
+video_rate = None
 
-def get_gop_info(url:str = './src/media/sample.mp4', name:str = None) -> list:
-    if name != None:
-        url = util.make_url(name)
-    res : str = str(
-        subprocess.check_output("ffprobe -select_streams v -show_frames -show_entries frame=pict_type -of csv {}".format(url), shell=True)
-    ).split('\\r\\n')
-    res = [res[0][8]] + [
-            frame[6] 
-            for frame in res 
-            if len(frame.split(',')) > 0 and frame[0] == 'f'
-    ]
-    return res
-
-def get_media_endtime(url:str):
-    end_time = str(subprocess.check_output('ffprobe -i {} -show_entries format=duration -v quiet -of csv="p=0"'.format(url), shell=True))[2:-5]
-    return end_time
-
-def get_media_timestamp_info(url:str = './src/media/sample.mp4', name:str = None):
-    if name != None:
-        url = util.make_url(name)
-    res : str = str(subprocess.check_output('ffprobe -f lavfi -i "movie={}" -show_frames -show_entries frame=pkt_pts_time -of csv=p=0'.format(url), shell=True)).split('\\r\\n')
-    end_time = [get_media_endtime(url)]
-    res = ['0.000000'] + res[1:-1] + end_time
-    util.append_log('time_list_length = ' + str(len(res)))
-    util.append_log('end_time = ' + end_time[0])
-    return res
-
-def split_media_section(input_url:str, output_url:str, start_time:float, end_time:float):
-    code = 'ffmpeg -y -ss {} -t {} -i {} -c:v copy {}'.format(start_time,end_time,input_url,output_url)
+def split_media_section(code:str):
     os.system(code)
-    parsed_url = util.parse_url(output_url)
-    print("##################################\n\n\n {} \n\n\n".format(code))
-    util.write_gop_info_text('{}.{}'.format(parsed_url[0],parsed_url[1]))
 
-def split_media(src_url:str, sections:list):
-    output_url = src_url
-    frame_time_list = get_media_timestamp_info(src_url)
-    media_frame_count = len(frame_time_list)
+def split_media(name:str, sections:list):
+    head_frame_list = [0] + sections
+    tail_frame_list = sections + [None]
+    codes = []
+    for i, head, tail, in zip(range(len(head_frame_list)), head_frame_list, tail_frame_list):
+        start_time = None
+        frame_cnt = None
+        if head != 0:
+            start_time = head / video_rate
+        if tail != None:
+            frame_cnt = tail - head
+        code = util.make_split_code(name, i, start_time, frame_cnt)
+        codes.append(code)
+
+    jobs = [threading.Thread(target=split_media_section, args=([code]), daemon=True) for code in codes]
+    for job in jobs:
+        job.start()
+    for job in jobs:
+        job.join()
     
-    start_frame_list = [0] + sections
-    end_frame_list = sections + [media_frame_count - 1]
+    util.append_log('\n======Split Code======\n')
+    for code in codes:
+        util.append_log(code)
+    return
 
-    util.remove_legacy_media_files(src_url)
-    threads = [
-        threading.Thread(
-            target=split_media_section, 
-            args=(
-                src_url, 
-                util.make_numbering_name(output_url,num),
-                util.make_vaild_time(frame_time_list[start_frame_num]),
-                float(util.make_vaild_time(frame_time_list[end_frame_num])) - float(util.make_vaild_time(frame_time_list[start_frame_num]))), 
-                daemon=True,
-            )
-        for num, start_frame_num, end_frame_num 
-        in zip(
-            range(len(end_frame_list)), 
-            start_frame_list, 
-            end_frame_list
-        )
-    ]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-def merge_media(src_url:str, merging_section:list = None):
-    write_info = util.write_merge_medium_txt(src_url,merging_section)
-    filename = write_info[0]
-    output_url = util.make_merged_url(src_url, write_info[1])
-    code = 'ffmpeg -f concat -safe 0 -i {} -c copy {}'.format(filename,output_url)
+def merge_media(name:str, sections:list):
+    sections = util.get_merge_url_list(name, sections)
+    media_data = util.write_merge_text(name,sections)
+    merge_media_name = media_data[0]
+    merge_txt_name = media_data[1]
+    code = util.make_merge_code(merge_txt_name,merge_media_name)
     os.system(code)
 
-    parsed_output_url = util.parse_url(output_url)
-    return '{}.{}'.format(parsed_output_url[0], parsed_output_url[1])
+    util.append_log('\n======Merge Urls======\n')
+    for url in sections:
+        util.append_log(url)
+    
+    util.append_log('\n======Merge Code======\n')
+    util.append_log(code)
+
+def excute_draw_text(loc:str,name:str,pos:int):
+    url = loc + name
+    tmp = name.split('.')
+    url2 = loc + tmp[0] + '_F.' + tmp[1]
+    code = 'ffmpeg -y -i {} -vf \"drawtext=fontfile=Arial.ttf: text=\'%{}{}{}\': '.format(url,'{','frame_num','}')
+    code += 'start_number=1: x=(w-tw)/2: y=h-({}*lh): '.format(pos)
+    code += 'fontcolor=black: fontsize=80: box=1: boxcolor=yellow: boxborderw=5\" -c:a copy {}'.format(url2)
+    util.append_log('\n\n drawtext code\n\n' + code)
+    os.system(code)

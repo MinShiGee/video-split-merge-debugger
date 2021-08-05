@@ -1,6 +1,4 @@
-time_list_length = 361
-end_time = 15.021667
-test_@0.mp4 end_time = 4.130000
-test_@1.mp4 end_time = 5.131000
-test_@2.mp4 end_time = 5.763000
-merg end_time = 15.047000
+<log-header>
+file_name = test.mp4
+video_rate = 23.976023976023978
+########################################
