@@ -16,9 +16,10 @@ dir_list = [
 ]
 
 def run_app(config: defaultdict(None)):
-
     if config['remove_legacy_files'] ==True:
         util.remove_legacy_files(dir_list[1:])
+        if config['merge'] == True:
+            config['split'] = True
 
     for check_key in check_list:
         if config[check_key] == None:
@@ -37,13 +38,28 @@ def run_app(config: defaultdict(None)):
     util.init_log()
     setup(config)
 
+    config['job_code'] = util.make_job_code()
     if config['split'] == True:
         ffmpeg.split_media(config['filename'], config['split_sections'])
+        
     if config['merge'] == True:
-        ffmpeg.merge_media(config['filename'], config['merge_sections'])
-    if config['print_log'] == True:
-        pass
+        config['job_code'] = ffmpeg.merge_media(config['filename'], config['merge_sections'])[2]
     
+    if config['out_draw_text'] == True:
+        draw_job = threading.Thread(
+            target=ffmpeg.excute_draw_text, 
+            args=[
+                const.merge_media_url,
+                util.make_merge_names(config['filename'], config['job_code'])[0],
+                2
+            ],
+            daemon=True
+        )
+        draw_job.start()
+
+    if config['print_log'] == True:
+        print_log(config)
+
     if job != None:
         job.join()
 
@@ -75,3 +91,30 @@ def write_log_header(config:dict):
         util.append_log('split_secton = {}'.format(data))
     util.append_log('########################################')
     return
+
+def print_log(config:dict):
+    job_code = config['job_code']
+    t1 = threading.Thread(
+        target=util.copy_log, 
+        args=[util.make_filename_to_logurl(config['filename'], job_code)], 
+        daemon= True
+    )
+    t1.start()
+    t2 = threading.Thread(
+        target=util.write_frame_info_text, 
+        args= [const.src_url + config['filename']],
+        daemon=True
+    )
+    t2.start()
+    data = util.make_merge_names(config['filename'], job_code)
+    t3 = threading.Thread(
+        target=util.write_frame_info_text,
+        args=[const.merge_media_url + data[0]],
+        daemon=True
+    )
+    t3.start()
+    t1.join()
+    t2.join()
+    t3.join()
+
+    util.compare_frame_info_txt('<data>\n', config['filename'], data[0])

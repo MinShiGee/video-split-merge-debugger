@@ -1,9 +1,17 @@
 import os
 from . import constant as const
 import threading
+import subprocess
 from . import util
 
 video_rate = None
+print_log = False
+
+def get_frame_info(url:str = './src/media/test.mp4') -> list:
+    res : str = str(
+        subprocess.check_output("ffprobe -select_streams v -show_frames -show_entries frame -of csv {}".format(url), shell=True)
+    ).split('\\r\\n')
+    return res
 
 def split_media_section(code:str):
     os.system(code)
@@ -33,7 +41,11 @@ def split_media(name:str, sections:list):
         util.append_log(code)
     return
 
-def merge_media(name:str, sections:list):
+def merge_media(name:str, sections:list) -> list:
+    '''
+    arr[3] = [merge_media_name, merge_txt_name, job_code]
+    '''
+
     sections = util.get_merge_url_list(name, sections)
     media_data = util.write_merge_text(name,sections)
     merge_media_name = media_data[0]
@@ -47,13 +59,14 @@ def merge_media(name:str, sections:list):
     
     util.append_log('\n======Merge Code======\n')
     util.append_log(code)
+    return media_data
 
-def excute_draw_text(loc:str,name:str,pos:int):
+def excute_draw_text(loc:str,name:str,pos:int) -> str:
     url = loc + name
     tmp = name.split('.')
     url2 = loc + tmp[0] + '_F.' + tmp[1]
     code = 'ffmpeg -y -i {} -vf \"drawtext=fontfile=Arial.ttf: text=\'%{}{}{}\': '.format(url,'{','frame_num','}')
     code += 'start_number=1: x=(w-tw)/2: y=h-({}*lh): '.format(pos)
     code += 'fontcolor=black: fontsize=80: box=1: boxcolor=yellow: boxborderw=5\" -c:a copy {}'.format(url2)
-    util.append_log('\n\n drawtext code\n\n' + code)
     os.system(code)
+    return code

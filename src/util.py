@@ -1,5 +1,8 @@
 import os
+from src import app
 import time
+import shutil
+from typing import Text
 from . import ffmpeg_module as ffmpeg
 from . import constant as const
 
@@ -45,28 +48,45 @@ def get_merge_url_list(name:str, sections:list) -> list:
     return inv_files
 
 def make_merge_code(src_txt:str, out_name:str) -> str:
-    code = 'ffmpeg -f concat -safe 0 -i {} -c copy {}'.format(const.merge_txt_url + src_txt, const.merge_media_url + out_name)
+    code = 'ffmpeg -f concat -safe 0 -i {} -c:v copy {}'.format(const.merge_txt_url + src_txt, const.merge_media_url + out_name)
     return code
 
-def write_merge_text(src_name:str, names:list) -> list:
-    code = make_job_code()
+def make_merge_names(src_name:str, code:str):
     name_data = src_name.split('.')
     only_txt_name = name_data[0] + const.merged_media_parse_code + code
     merge_media_name = only_txt_name + '.' + name_data[-1]
     only_txt_name += '.txt'
-    f = open('{}'.format(const.merge_txt_url + only_txt_name), "w")
+    res = [merge_media_name, only_txt_name]
+    return res
+
+def write_merge_text(src_name:str, names:list) -> list:
+    code = make_job_code()
+    name_data = make_merge_names(src_name, code)
+    f = open('{}'.format(const.merge_txt_url + name_data[1]), "w")
     for data in names:
         f.write('file \'{}\'\n'.format(const.rel_to_cut_media + data))
     f.close()
     
-    res = [merge_media_name, only_txt_name]
+    res = [name_data[0], name_data[1], code]
     return res 
 
 def remove_legacy_files(urls:list):
     for url in urls:
-        files = os.listdir(url)
-        for file in files:
-            os.remove(url + file)
+        try:
+            files = os.listdir(url)
+            for file in files:
+                os.remove(url + file)
+        except:
+            pass
+    return
+
+def make_filename_to_logurl(name:str, code:str):
+    name_data = name.split('.')
+    url = const.log_url + name_data[0] + '_L' + code + '.txt'
+    return url
+
+def copy_log(url:str):
+    shutil.copyfile('log.txt', url)
     return
 
 def make_job_code() -> str:
@@ -79,6 +99,40 @@ def make_job_code() -> str:
         now.tm_min, 
         now.tm_sec
     )
+
+def write_frame_info_text(url:str):
+    url_data = url.split('/')
+    out_url = './src/log/{}_@frame_log.txt'.format(url_data[-1])
+    f = open(out_url, "w")
+    data = ['{}\n'.format(info) for info in ffmpeg.get_frame_info(url) if len(info) > 5]
+    f.write(''.join(data))
+    f.close()
+
+def compare_frame_info_txt(meta:str, filename1:str, filename2:str) -> bool:
+    f1_data = open('./src/log/{}_@frame_log.txt'.format(filename1),"r").read().split('\n')
+    f2_data = open('./src/log/{}_@frame_log.txt'.format(filename2),"r").read().split('\n')
+    diff = ''
+    gap = len(f1_data) - len(f2_data)
+    if gap < 0:
+        f1_data += ['' for _ in range(abs(gap))]
+    else:
+        f2_data += ['' for _ in range(gap)]
+
+    comp_str = open('./src/comp_list.txt',"r").read().replace('\n\n','\n') .split('\n')
+    for i, d1, d2 in zip(range(len(f1_data)), f1_data, f2_data):
+        parsed_d1 = d1.split(',')
+        parsed_d2 = d2.split(',')
+        diff += 'frame: {}\n'.format(i)
+        for k,a,b in zip(comp_str,parsed_d1,parsed_d2):
+            if a == b:
+                continue
+            diff += '{} {},{}\n'.format(k,a,b)
+        diff += '\n'
+
+    f = open('./src/log/{}_C@{}.txt'.format(filename1,filename2),"w")
+    f.write(meta + diff)
+    f.close()
+    return diff == ''
 
 def print_block_line():
     print('########################################')
