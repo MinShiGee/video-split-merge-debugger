@@ -6,9 +6,21 @@ merge_media_url = './src/merge_video/'
 rel_to_cut_media = '../tmp_media/'
 cut_name_parse_code = '_@'
 merged_media_parse_code = '_M@'
+config:dict = {}
+
+delta_timestamp:dict = {
+    'ntsc':1001/30000, 
+    'pal':1/25,
+    'qntsc':1001/30000,
+    'qpal':1/25,
+    'sntsc':1001/30000,
+    'spal':1/25,
+    'film':1/24,
+    'ntsc-film':1001/24000,
+}
 
 video_rate:dict = {
-    'ntsc':30000/1001, 
+    'ntsc':30000/1001,
     'pal':25/1,
     'qntsc':30000/1001,
     'qpal':25/1,

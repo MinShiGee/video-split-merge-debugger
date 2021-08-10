@@ -17,10 +17,9 @@ def make_drawtext_name(name:str):
 
 def make_split_code(src_name:str, num:int, start_time:float = None, frame_cnt:int = None) -> str:
     code = 'ffmpeg -y '
-    if start_time != None:
-        code += '-ss {} '.format(start_time)
+    code += '-ss {} '.format(start_time) 
     code += '-i {} '.format(const.src_url + src_name)
-    code += '-c:v libx264 -an '
+    code += '-an '
     if frame_cnt != None:
         code += '-frames {} '.format(frame_cnt)
     code += '{}'.format(const.cut_url + make_splited_num_name(src_name, num))
@@ -48,7 +47,7 @@ def get_merge_url_list(name:str, sections:list) -> list:
     return inv_files
 
 def make_merge_code(src_txt:str, out_name:str) -> str:
-    code = 'ffmpeg -f concat -safe 0 -i {} -c:v copy {}'.format(const.merge_txt_url + src_txt, const.merge_media_url + out_name)
+    code = 'ffmpeg -f concat -safe 0 -i {} {}'.format(const.merge_txt_url + src_txt, const.merge_media_url + out_name)
     return code
 
 def make_merge_names(src_name:str, code:str):
@@ -100,37 +99,48 @@ def make_job_code() -> str:
         now.tm_sec
     )
 
-def write_frame_info_text(url:str):
-    url_data = url.split('/')
+def write_frame_info_text(src_url:str):
+    url_data = src_url.split('/')
     out_url = './src/log/{}_@frame_log.txt'.format(url_data[-1])
-    f = open(out_url, "w")
-    data = ['{}\n'.format(info) for info in ffmpeg.get_frame_info(url) if len(info) > 5]
-    f.write(''.join(data))
-    f.close()
+    os.system('ffprobe -select_streams v -show_frames -show_entries frame -of csv {} >> {}'.format(src_url, out_url))
+
+def write_gop_info_text(src_url:str):
+    url_data = src_url.split('/')
+    out_url = './src/log/{}_@gop_log.txt'.format(url_data[-1])
+    os.system('ffprobe -select_streams v -show_frames -show_entries frame=pict_type -of csv {} >> {}'.format(src_url, out_url))
 
 def compare_frame_info_txt(meta:str, filename1:str, filename2:str) -> bool:
     f1_data = open('./src/log/{}_@frame_log.txt'.format(filename1),"r").read().split('\n')
     f2_data = open('./src/log/{}_@frame_log.txt'.format(filename2),"r").read().split('\n')
-    diff = ''
+    diff = '=====diff_data=====\n\n'
+    err_log = '=====err_log=====\n\npass_line = [\n'
+    pass_line = []
+
     gap = len(f1_data) - len(f2_data)
     if gap < 0:
         f1_data += ['' for _ in range(abs(gap))]
     else:
         f2_data += ['' for _ in range(gap)]
 
+    empty_cnt = 0
     comp_str = open('./src/comp_list.txt',"r").read().replace('\n\n','\n') .split('\n')
     for i, d1, d2 in zip(range(len(f1_data)), f1_data, f2_data):
+        if len(d1) < 5 or len(d2) < 5:
+            pass_line.append('  ' + str(i) + ',\n') # write error log
+            empty_cnt += 1
+            continue
         parsed_d1 = d1.split(',')
         parsed_d2 = d2.split(',')
-        diff += 'frame: {}\n'.format(i)
+        diff += 'frame: {}\n'.format(i-empty_cnt)
         for k,a,b in zip(comp_str,parsed_d1,parsed_d2):
             if a == b:
                 continue
             diff += '{} {},{}\n'.format(k,a,b)
         diff += '\n'
+    err_log += ''.join(pass_line) + ']\n\n'
 
     f = open('./src/log/{}_C@{}.txt'.format(filename1,filename2),"w")
-    f.write(meta + diff)
+    f.write(meta + err_log + diff)
     f.close()
     return diff == ''
 

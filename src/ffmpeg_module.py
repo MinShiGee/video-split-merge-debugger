@@ -4,15 +4,6 @@ import threading
 import subprocess
 from . import util
 
-video_rate = None
-print_log = False
-
-def get_frame_info(url:str = './src/media/test.mp4') -> list:
-    res : str = str(
-        subprocess.check_output("ffprobe -select_streams v -show_frames -show_entries frame -of csv {}".format(url), shell=True)
-    ).split('\\r\\n')
-    return res
-
 def split_media_section(code:str):
     os.system(code)
 
@@ -21,10 +12,11 @@ def split_media(name:str, sections:list):
     tail_frame_list = sections + [None]
     codes = []
     for i, head, tail, in zip(range(len(head_frame_list)), head_frame_list, tail_frame_list):
-        start_time = None
         frame_cnt = None
+        start_time = head * const.delta_timestamp[const.config['video_rate']] 
         if head != 0:
-            start_time = head / video_rate
+           start_time + const.delta_timestamp[const.config['video_rate']] / 2
+        util.append_log('head = {},  delta = {}, time = {}'.format(head,const.delta_timestamp[const.config['video_rate']],start_time))
         if tail != None:
             frame_cnt = tail - head
         code = util.make_split_code(name, i, start_time, frame_cnt)

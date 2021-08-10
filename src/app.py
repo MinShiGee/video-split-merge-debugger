@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import List
+from typing import List, MutableMapping
 import threading
 import os
 from . import ffmpeg_module as ffmpeg
@@ -16,10 +16,30 @@ dir_list = [
 ]
 
 def run_app(config: defaultdict(None)):
-    if config['remove_legacy_files'] ==True:
+
+    setup(config)
+
+    if config['remove_legacy_files'] == True:
         util.remove_legacy_files(dir_list[1:])
         if config['merge'] == True:
             config['split'] = True
+
+    if config['print_src_gop_log'] == True:
+        util.write_gop_info_text(const.src_url + config['filename'])
+
+    if config['use_section1'] == True:
+        section_one(config)
+    
+    return
+
+def setup(config:dict):
+    util.init_log()
+    make_dir()
+    write_log_header(config)
+    const.config = config
+    return
+    
+def section_one(config:dict):
 
     for check_key in check_list:
         if config[check_key] == None:
@@ -34,9 +54,6 @@ def run_app(config: defaultdict(None)):
             job.join()
             config['filename'] = util.make_drawtext_name(config['filename'])
             job = None
-
-    util.init_log()
-    setup(config)
 
     config['job_code'] = util.make_job_code()
     if config['split'] == True:
@@ -65,12 +82,6 @@ def run_app(config: defaultdict(None)):
 
     return
 
-def setup(config:dict):
-    make_dir()
-    ffmpeg.video_rate = const.video_rate[config['video_rate']]
-    write_log_header(config)
-    return
-    
 def make_dir():
     util.print_header_line('make directory')
     
@@ -85,7 +96,7 @@ def make_dir():
 def write_log_header(config:dict):
     util.append_log('<log-header>')
     util.append_log('file_name = ' + str(config['filename']))
-    util.append_log('video_rate = ' + str(ffmpeg.video_rate))
+    util.append_log('video_rate = ' + str(config['video_rate']))
     if config['split'] == True:
         data = ''.join([str(d) +', ' for d in config['split_sections']])
         util.append_log('split_secton = {}'.format(data))
@@ -101,7 +112,7 @@ def print_log(config:dict):
     )
     t1.start()
     t2 = threading.Thread(
-        target=util.write_frame_info_text, 
+        target=util.write_frame_info_text,
         args= [const.src_url + config['filename']],
         daemon=True
     )
@@ -110,6 +121,11 @@ def print_log(config:dict):
     t3 = threading.Thread(
         target=util.write_frame_info_text,
         args=[const.merge_media_url + data[0]],
+        daemon=True
+    )
+    etc_t = threading.Thread(
+        target=util.write_frame_info_text,
+        args=[],
         daemon=True
     )
     t3.start()
