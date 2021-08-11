@@ -1,25 +1,28 @@
 import os
 from . import constant as const
 import threading
-import subprocess
 from . import util
 
 def split_media_section(code:str):
     os.system(code)
 
 def split_media(name:str, sections:list):
-    head_frame_list = [0] + sections
+    head_frame_list = [1] + sections
     tail_frame_list = sections + [None]
     codes = []
+    util.append_log('\n\n==========split_times==========')
     for i, head, tail, in zip(range(len(head_frame_list)), head_frame_list, tail_frame_list):
-        frame_cnt = None
-        start_time = head * const.delta_timestamp[const.config['video_rate']] 
-        if head != 0:
-           start_time + const.delta_timestamp[const.config['video_rate']] / 2
-        util.append_log('head = {},  delta = {}, time = {}'.format(head,const.delta_timestamp[const.config['video_rate']],start_time))
+        delta = const.delta_timestamp[const.config['video_rate']]
+        start_time = (head-1) * delta
+        end_time = None
+        frame_count = None
+        if head > 1:
+           start_time -= delta / 2
         if tail != None:
-            frame_cnt = tail - head
-        code = util.make_split_code(name, i, start_time, frame_cnt)
+            end_time = (tail - 1) * delta - delta / 2
+            frame_count = tail - head
+        util.append_log('head = {},  start_time = {}, end_time {}'.format(head,start_time,end_time))
+        code = util.make_split_code(name, i, start_time, end_time, frame_count)
         codes.append(code)
 
     jobs = [threading.Thread(target=split_media_section, args=([code]), daemon=True) for code in codes]

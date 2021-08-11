@@ -1,5 +1,0 @@
-<log-header>
-file_name = ntsc_test.mp4
-video_rate = ntsc
-split_secton = 90, 180, 
-########################################
